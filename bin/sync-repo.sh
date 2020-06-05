@@ -6,8 +6,8 @@ set -o pipefail
 
 readonly HELM_URL=https://storage.googleapis.com/kubernetes-helm
 readonly HELM_TARBALL=helm-v2.16.5-linux-amd64.tar.gz
-readonly REPO_URL=https://mettle-charts.storage.googleapis.com/
-readonly GCS_BUCKET=gs://mettle-charts
+readonly REPO_URL=https://swade1987-charts.storage.googleapis.com/
+readonly GCS_BUCKET=gs://swade1987-charts
 
 main() {
   setup_helm_client
