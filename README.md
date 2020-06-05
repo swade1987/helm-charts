@@ -1,2 +1,1 @@
-# helm-charts
-A repo containing useful helm charts
+# Helm charts
