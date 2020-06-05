@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app_name: {{ .Values.server.name }}
+    app_version: {{ .Values.server.image.tag | quote }}
+  name: {{ .Values.server.name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.server.name }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.server.name }}

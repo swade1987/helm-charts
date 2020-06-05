@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: thanos-sidecar-grpc
+  labels:
+    app_name: thanos-sidecar
+    app_version: {{ .Values.thanos.image.tag | quote }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: 10901
+      protocol: TCP
+      targetPort: grpc
+      name: grpc
+  selector:
+    app_name: prometheus
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: thanos-sidecar-http
+  labels:
+    app_name: thanos-sidecar
+    app_version: {{ .Values.thanos.image.tag | quote }}
+spec:
+  ports:
+    - port: 10902
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app_name: prometheus
