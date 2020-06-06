@@ -9,3 +9,7 @@ sources:
   - https://prometheus.io
 icon: https://prometheus.io/assets/prometheus_logo_grey.svg
 home: https://prometheus.io
+maintainers:
+  - name: Steven Wade
+    email: steven@stevenwade.co.uk
+    url: https://github.com/swade1987
