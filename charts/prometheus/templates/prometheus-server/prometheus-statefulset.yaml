@@ -1,0 +1,197 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.server.name }}
+  labels:
+    app_name: {{ .Values.server.name }}
+    app_version: {{ .Values.server.image.tag | quote }}
+    thanos-peer: "true"
+spec:
+  serviceName: {{ .Values.server.name | quote }}
+  replicas: {{ .Values.server.replicas }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app_name: {{ .Values.server.name }}
+      thanos-peer: "true"
+  template:
+    metadata:
+      labels:
+        app_name: {{ .Values.server.name }}
+        app_version: {{ .Values.server.image.tag | quote }}
+        thanos-peer: "true"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10902"
+{{- if .Values.server.podAnnotations }}
+{{ toYaml .Values.server.podAnnotations | indent 8 }}
+{{- end }}
+    spec:
+      {{- if .Values.server.imagePullSecretName }}
+      imagePullSecrets:
+        - name: {{ .Values.server.imagePullSecretName }}
+      {{- end }}
+      serviceAccountName: {{ .Values.server.name }}
+{{- if .Values.server.tolerations }}
+      tolerations:
+{{ toYaml .Values.server.tolerations | indent 8 }}
+{{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app_name
+                operator: In
+                values:
+                - {{ .Values.server.name }}
+            topologyKey: topology.kubernetes.io/zone
+      initContainers:
+
+        - name: wait-deploy-key
+          image: busybox:1-musl
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'counter=0; until [ "$counter" -ge 30 ]; do if [ -f /etc/git-secret/ssh ]; then exit 0; else echo "Waiting for git deploy key" && sleep 1 && counter=$((counter+1)); fi; done; exit 1;']
+          volumeMounts:
+          - mountPath: /etc/git-secret
+            name: git-secret
+
+        - name: git-sync-init
+          image: "{{ .Values.gitSync.image.repository }}/{{ .Values.gitSync.image.name }}:{{ .Values.gitSync.image.tag }}"
+          imagePullPolicy: "{{ .Values.gitSync.image.pullPolicy }}"
+          args:
+           - "-branch={{ .Values.gitSync.git.branch }}"
+           - "-depth=1"
+           - "-one-time=true"
+           - "-repo=git@github.com:{{ .Values.gitSync.git.repo }}"
+           - "-root=/etc/prometheus-shared"
+           - "-ssh"
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+          - name: config-shared
+            mountPath: /etc/prometheus-shared
+          - name: git-secret
+            mountPath: /etc/git-secret
+
+      containers:
+
+      - name: git-sync
+        image: "{{ .Values.gitSync.image.repository }}/{{ .Values.gitSync.image.name }}:{{ .Values.gitSync.image.tag }}"
+        imagePullPolicy: "{{ .Values.gitSync.image.pullPolicy }}"
+        args:
+         - "-branch={{ .Values.gitSync.git.branch }}"
+         - "-depth=1"
+         - "-max-sync-failures=10"
+         - "-repo=git@github.com:{{ .Values.gitSync.git.repo }}"
+         - "-root=/etc/prometheus-shared"
+         - "-ssh"
+         - "-wait=30"
+         - "--webhook-url=http://localhost:9090/-/reload"
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: config-shared
+          mountPath: /etc/prometheus-shared
+        - name: git-secret
+          mountPath: /etc/git-secret
+
+      - name: {{ .Values.server.name }}
+        image: "{{ .Values.server.image.repository }}/{{ .Values.server.image.name }}:{{ .Values.server.image.tag }}"
+        imagePullPolicy: "{{ .Values.server.image.pullPolicy }}"
+        securityContext:
+          runAsUser: 0
+        args:
+        # We are using the expanded configuration to make sure we have the replica label correctly defined.
+        - --config.file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/prometheus/prometheus-expanded.yml
+        - --storage.tsdb.max-block-duration=2h
+        - --storage.tsdb.min-block-duration=2h
+        - --storage.tsdb.path=/var/prometheus
+        - --storage.tsdb.retention.size={{ .Values.server.retentionSize }}
+        - --storage.tsdb.wal-compression
+        - --web.enable-admin-api # enabled to support sidecar to get metadata from Prometheus like external labels.
+        - --web.enable-lifecycle # enabled as we want to use sidecar reloading features
+      {{- range $key, $value := .Values.server.extraArgs }}
+        - --{{ $key }}={{ $value }}
+      {{- end }}
+        ports:
+        - name: prom-http
+          containerPort: 9090
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9090
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
+        resources:
+{{ toYaml .Values.server.resources | indent 10 }}
+        volumeMounts:
+        - name: config-shared
+          mountPath: /etc/prometheus-shared
+        - name: {{ .Values.server.name }}-data
+          mountPath: /var/prometheus
+
+      - name: thanos
+        image: "{{ .Values.thanos.image.repository }}/{{ .Values.thanos.image.name }}:{{ .Values.thanos.image.tag }}"
+        securityContext:
+          runAsUser: 0
+        args:
+        - sidecar
+        - --prometheus.url=http://127.0.0.1:9090
+        - --log.level=debug
+        - --tsdb.path=/var/prometheus
+
+        # https://thanos.io/components/sidecar.md/#reloader-configuration
+        - --reloader.config-file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/prometheus/prometheus.yml
+        - --reloader.config-envsubst-file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/prometheus/prometheus-expanded.yml
+
+        - --objstore.config-file=/etc/thanos/s3.yaml
+      {{- range $key, $value := .Values.thanos.sidecar.extraArgs }}
+        - --{{ $key }}={{ $value }}
+      {{- end }}
+        ports:
+        - name: http
+          containerPort: 10902
+        - name: grpc
+          containerPort: 10901
+        volumeMounts:
+        - name: {{ .Values.server.name }}-data
+          mountPath: /var/prometheus
+        - name: config-shared
+          mountPath: /etc/prometheus-shared
+        - name: thanos-s3-config
+          mountPath: /etc/thanos
+
+      volumes:
+      - name: config-shared
+        emptyDir: {}
+      - name: git-secret
+        secret:
+          secretName: git-creds
+          defaultMode: 256
+      - name: thanos-s3-config
+        configMap:
+          name: "thanos-s3-config-{{ .Values.env }}"
+{{- if .Values.server.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.server.nodeSelector | indent 8 }}
+{{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.server.name }}-data
+        labels:
+          app_name: {{ .Values.server.name }}
+          app_version: {{ .Values.server.image.tag | quote }}
+      spec:
+        accessModes: [ {{ .Values.server.persistentVolume.accessModes | quote }} ]
+        storageClassName: {{ .Values.server.persistentVolume.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.server.persistentVolume.size }}

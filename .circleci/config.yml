@@ -1,0 +1,58 @@
+version: 2
+
+jobs:
+
+  kubeval:
+    docker:
+      - image: eu.gcr.io/swade1987/kubernetes-toolkit:1.17.2
+    steps:
+      - checkout
+      - run:
+          name: kubeval
+          command: bash -c "`cat bin/kubeval-each-chart`"
+
+  lint:
+    docker:
+      - image: quay.io/helmpack/chart-testing:v3.0.0-rc.1
+    steps:
+      - checkout
+      - run:
+          name: lint
+          command: ct lint --config test/ct.yaml
+
+  deprek8-check:
+    docker:
+      - image: eu.gcr.io/swade1987/kubernetes-toolkit:1.17.2
+    steps:
+      - checkout
+      - run:
+          name: verify against deprecated API versions
+          command: bash -c "`cat bin/deprek8s-check`"
+
+  publish:
+    docker:
+      - image: google/cloud-sdk
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: sync repo
+          command: make sync-repo
+
+workflows:
+  version: 2
+  flow:
+    jobs:
+      - kubeval
+      - lint
+      - deprek8-check
+      - publish:
+          context: google-cloud-platform
+          filters:
+            branches:
+              only:
+                - master
+          requires:
+            - kubeval
+            - lint
+            - deprek8-check
