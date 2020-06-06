@@ -47,7 +47,6 @@ spec:
                 values:
                 - {{ .Values.server.name }}
             topologyKey: topology.kubernetes.io/zone
-      priorityClassName: mettle-cluster-critical
       initContainers:
 
         - name: wait-deploy-key

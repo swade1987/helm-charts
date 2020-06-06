@@ -4,7 +4,7 @@ jobs:
 
   kubeval:
     docker:
-      - image: quay.io/swade1987/kubernetes-toolkit:1.17.2
+      - image: eu.gcr.io/swade1987/kubernetes-toolkit:1.17.2
     steps:
       - checkout
       - run:
@@ -22,12 +22,22 @@ jobs:
 
   deprek8-check:
     docker:
-      - image: quay.io/swade1987/kubernetes-toolkit:1.17.2
+      - image: eu.gcr.io/swade1987/kubernetes-toolkit:1.17.2
     steps:
       - checkout
       - run:
           name: verify against deprecated API versions
           command: bash -c "`cat bin/deprek8s-check`"
+
+  publish:
+    docker:
+      - image: google/cloud-sdk
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: sync repo
+          command: make sync-repo
 
 workflows:
   version: 2
@@ -36,3 +46,15 @@ workflows:
       - kubeval
       - lint
       - deprek8-check
+      - nameclash
+      - publish:
+          context: google-cloud-platform
+          filters:
+            branches:
+              only:
+                - master
+          requires:
+            - kubeval
+            - lint
+            - deprek8-check
+            - nameclash

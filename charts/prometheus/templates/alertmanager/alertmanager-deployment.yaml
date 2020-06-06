@@ -29,7 +29,6 @@ spec:
       tolerations:
 {{ toYaml .Values.alertmanager.tolerations | indent 8 }}
     {{- end }}
-      priorityClassName: mettle-cluster-critical
       initContainers:
 
         - name: init
