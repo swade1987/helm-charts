@@ -46,7 +46,6 @@ workflows:
       - kubeval
       - lint
       - deprek8-check
-      - nameclash
       - publish:
           context: google-cloud-platform
           filters:
@@ -57,4 +56,3 @@ workflows:
             - kubeval
             - lint
             - deprek8-check
-            - nameclash
