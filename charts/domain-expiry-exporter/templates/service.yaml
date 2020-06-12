@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: domain-expiry-exporter
+  labels:
+    app_name: domain-expiry-exporter
+    app_version: {{ .Values.image.tag }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9222"
+spec:
+  ports:
+    - port: 9222
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app_name: domain-expiry-exporter
