@@ -1,0 +1,16 @@
+replicaCount: 2
+
+image:
+  repository: caarlos0/domain_exporter
+  tag: v1.7.2
+  pullPolicy: IfNotPresent
+
+imagePullSecretName: ""
+
+resources: {}
+
+priorityClassName: ""
+
+nodeSelector: {}
+
+tolerations: []
