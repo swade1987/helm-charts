@@ -47,6 +47,7 @@ spec:
                 values:
                 - {{ .Values.server.name }}
             topologyKey: topology.kubernetes.io/zone
+      priorityClassName: cluster-critical
       initContainers:
 
         - name: wait-deploy-key
@@ -83,7 +84,7 @@ spec:
         args:
          - "-branch={{ .Values.gitSync.git.branch }}"
          - "-depth=1"
-         - "-max-sync-failures=10"
+         - "-max-sync-failures=240"
          - "-repo=git@github.com:{{ .Values.gitSync.git.repo }}"
          - "-root=/etc/prometheus-shared"
          - "-ssh"
@@ -91,6 +92,10 @@ spec:
          - "--webhook-url=http://localhost:9090/-/reload"
         securityContext:
           runAsUser: 0
+{{ if .Values.server.gitSync.resources }}
+        resources:
+{{ toYaml .Values.server.gitSync.resources | indent 10 }}
+{{ end }}
         volumeMounts:
         - name: config-shared
           mountPath: /etc/prometheus-shared
@@ -103,12 +108,14 @@ spec:
         securityContext:
           runAsUser: 0
         args:
+        {{- $dir := ternary "prometheus-istio" "prometheus" .Values.istio.enabled }}
+        {{- $filename := ternary "prometheus-expanded.yml" "prometheus.yml" .Values.thanos.enabled }}
         # We are using the expanded configuration to make sure we have the replica label correctly defined.
-        - --config.file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/prometheus/prometheus-expanded.yml
+        - --config.file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/{{ $dir }}/{{ $filename }}
         - --storage.tsdb.max-block-duration=2h
         - --storage.tsdb.min-block-duration=2h
         - --storage.tsdb.path=/var/prometheus
-        - --storage.tsdb.retention.size={{ .Values.server.retentionSize }}
+        - --storage.tsdb.retention.time={{ .Values.server.retentionTime }}
         - --storage.tsdb.wal-compression
         - --web.enable-admin-api # enabled to support sidecar to get metadata from Prometheus like external labels.
         - --web.enable-lifecycle # enabled as we want to use sidecar reloading features
@@ -138,10 +145,15 @@ spec:
         - name: {{ .Values.server.name }}-data
           mountPath: /var/prometheus
 
+      {{- if .Values.thanos.enabled }}
       - name: thanos
         image: "{{ .Values.thanos.image.repository }}/{{ .Values.thanos.image.name }}:{{ .Values.thanos.image.tag }}"
         securityContext:
           runAsUser: 0
+{{ if .Values.thanos.sidecar.resources }}
+        resources:
+{{ toYaml .Values.thanos.sidecar.resources | indent 10 }}
+{{ end }}
         args:
         - sidecar
         - --prometheus.url=http://127.0.0.1:9090
@@ -149,9 +161,9 @@ spec:
         - --tsdb.path=/var/prometheus
 
         # https://thanos.io/components/sidecar.md/#reloader-configuration
-        - --reloader.config-file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/prometheus/prometheus.yml
-        - --reloader.config-envsubst-file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/prometheus/prometheus-expanded.yml
-
+        {{- $dir := ternary "prometheus-istio" "prometheus" .Values.istio.enabled }}
+        - --reloader.config-file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/{{ $dir }}/prometheus.yml
+        - --reloader.config-envsubst-file=/etc/prometheus-shared/monitoring-resources/{{ .Values.env }}/{{ $dir }}/prometheus-expanded.yml
         - --objstore.config-file=/etc/thanos/s3.yaml
       {{- range $key, $value := .Values.thanos.sidecar.extraArgs }}
         - --{{ $key }}={{ $value }}
@@ -168,6 +180,7 @@ spec:
           mountPath: /etc/prometheus-shared
         - name: thanos-s3-config
           mountPath: /etc/thanos
+      {{- end }}
 
       volumes:
       - name: config-shared
@@ -176,9 +189,11 @@ spec:
         secret:
           secretName: git-creds
           defaultMode: 256
+      {{- if .Values.thanos.enabled }}
       - name: thanos-s3-config
         configMap:
           name: "thanos-s3-config-{{ .Values.env }}"
+      {{- end }}
 {{- if .Values.server.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.server.nodeSelector | indent 8 }}
@@ -188,7 +203,6 @@ spec:
         name: {{ .Values.server.name }}-data
         labels:
           app_name: {{ .Values.server.name }}
-          app_version: {{ .Values.server.image.tag | quote }}
       spec:
         accessModes: [ {{ .Values.server.persistentVolume.accessModes | quote }} ]
         storageClassName: {{ .Values.server.persistentVolume.storageClassName }}

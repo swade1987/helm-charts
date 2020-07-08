@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "slow-cooker.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slow-cooker.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "slow-cooker.selectorLabels" . | nindent 8 }}
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      securityContext:
+        {{- toYaml .Values.application.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.application.securityContext | nindent 12 }}
+          image: "{{ .Values.application.image.repository }}:{{ .Values.application.image.tag }}"
+          imagePullPolicy: {{ .Values.application.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.application.resources | nindent 12 }}
+          args:
+          {{- if .Values.application.qps }}
+          - -qps
+          - {{ .Values.application.qps | quote }}
+          {{- end }}
+          {{- if .Values.application.concurrency }}
+          - -concurrency
+          - {{ .Values.application.concurrency | quote }}
+          {{- end }}
+          {{- if .Values.application.method }}
+          - -method
+          - {{ .Values.application.method }}
+          {{- end }}
+          {{- if .Values.application.timeout }}
+          - -timeout
+          - {{ .Values.application.timeout }}
+          {{- end }}
+          {{- range .Values.application.customArgs }}
+          - {{ . }}
+          {{- end }}
+          - -noLatencySummary
+          - "@/config/urllist"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Release.Name }}
+    {{- with .Values.application.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.application.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.application.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

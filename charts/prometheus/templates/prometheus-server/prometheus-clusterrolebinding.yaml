@@ -4,7 +4,7 @@ metadata:
   labels:
     app_name: {{ .Values.server.name }}
     app_version: {{ .Values.server.image.tag | quote }}
-  name: {{ .Values.server.name }}
+  name: {{ template "rbac-name" . }}
 subjects:
   - kind: ServiceAccount
     name: {{ .Values.server.name }}
@@ -12,4 +12,4 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ .Values.server.name }}
+  name: {{ template "rbac-name" . }}

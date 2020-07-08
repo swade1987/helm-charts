@@ -4,7 +4,7 @@ metadata:
   labels:
     app_name: {{ .Values.server.name }}
     app_version: {{ .Values.server.image.tag | quote }}
-  name: {{ .Values.server.name }}
+  name: {{ template "rbac-name" . }}
 rules:
   - apiGroups:
       - ""

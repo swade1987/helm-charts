@@ -29,6 +29,7 @@ spec:
       tolerations:
 {{ toYaml .Values.alertmanager.tolerations | indent 8 }}
     {{- end }}
+      priorityClassName: cluster-critical
       initContainers:
 
         - name: init
@@ -71,7 +72,7 @@ spec:
           imagePullPolicy: "{{ .Values.alertmanager.image.pullPolicy }}"
           args:
             - --config.file=/etc/alertmanager-shared/monitoring-resources/{{ .Values.env }}/alertmanager/alertmanager.yml
-            - --storage.path={{ .Values.alertmanager.persistentVolume.mountPath }}
+            - --storage.path=/data
           {{- range $key, $value := .Values.alertmanager.extraArgs }}
             - --{{ $key }}={{ $value }}
           {{- end }}
@@ -89,7 +90,7 @@ spec:
             - name: config-shared
               mountPath: /etc/alertmanager-shared
             - name: storage-volume
-              mountPath: "{{ .Values.alertmanager.persistentVolume.mountPath }}"
+              mountPath: "/data"
 
         - name: git-sync
           image: "{{ .Values.gitSync.image.repository }}/{{ .Values.gitSync.image.name }}:{{ .Values.gitSync.image.tag }}"
@@ -97,7 +98,7 @@ spec:
           args:
            - "-branch={{ .Values.gitSync.git.branch }}"
            - "-depth=1"
-           - "-max-sync-failures=10"
+           - "-max-sync-failures=240"
            - "-repo=git@github.com:{{ .Values.gitSync.git.repo }}"
            - "-root=/etc/alertmanager-shared"
            - "-ssh"
@@ -105,6 +106,10 @@ spec:
            - "--webhook-url=http://localhost:9093/-/reload"
           securityContext:
             runAsUser: 0
+{{ if .Values.alertmanager.gitSync.resources }}
+          resources:
+{{ toYaml .Values.alertmanager.gitSync.resources | indent 12 }}
+{{ end }}
           volumeMounts:
           - name: config-shared
             mountPath: /etc/alertmanager-shared
@@ -123,9 +128,4 @@ spec:
             secretName: git-creds
             defaultMode: 256
         - name: storage-volume
-        {{- if .Values.alertmanager.persistentVolume.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ .Values.alertmanager.name }}
-        {{- else }}
           emptyDir: {}
-        {{- end -}}
