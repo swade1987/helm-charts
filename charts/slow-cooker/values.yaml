@@ -1,0 +1,59 @@
+application:
+
+  # The URL to target with slow cooker
+  targetUrls:
+    - "https://google.com"
+
+  # The QPS to send to backends per request thread.
+  qps: 1
+
+  # Number of goroutines to run, each at the specified QPS level. Measure total QPS as qps * concurrency.
+  concurrency: 1
+
+  # Determines which HTTP method to use when making the request.
+  method: GET
+
+  # Individual request timeout.
+  timeout: 10s
+
+  customArgs: {}
+
+  replicaCount: 1
+
+  image:
+    repository: buoyantio/slow_cooker
+    tag: 1.2.0
+    pullPolicy: IfNotPresent
+
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  resources: {}
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}

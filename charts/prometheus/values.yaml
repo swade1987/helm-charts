@@ -1,60 +1,25 @@
-env: test
+env: dev
 
-# https://github.com/prometheus/alertmanager
-alertmanager:
-  name: alertmanager
+istio:
+  enabled: false
 
-  image:
-    repository: docker.io
-    name: prom/alertmanager
-    tag: v0.19.0
-    pullPolicy: IfNotPresent
-
-  # Setting this to blank string so that it is not used by default.
-  imagePullSecretName: ""
-
-  extraArgs: {}
-
-  nodeSelector: {}
-
-  tolerations: []
-
-  persistentVolume:
-    enabled: false
-    storageClassName: general-purpose-retain
-    mountPath: /data
-
-  podAnnotations: {}
-
-  replicaCount: 1
-
-  resources:
-    limits:
-      cpu: 100m
-      memory: 100Mi
-    requests:
-      cpu: 100m
-      memory: 100Mi
-
-  service:
-    annotations: {}
-
-  slack:
-    apiUrl: ""
-    channel: ""   # Please include the '#' as well.
-
-  ingress:
-    hostname: alertmanager-dev
+scrape:
+  kubeControllerManagerService:
+    enabled: true
+  kubeSchedulerService:
+    enabled: true
 
 # https://github.com/kubernetes/git-sync
 gitSync:
+
   git:
     branch: ""
     repo: ""
+
   image:
     name: git-sync
     pullPolicy: IfNotPresent
-    repository: k8s.gcr.io
+    repository: eu.gcr.io/google-containers
     tag: v3.1.1
 
 # https://github.com/prometheus/prometheus
@@ -74,6 +39,10 @@ server:
 
   extraArgs: {}
   resources: {}
+
+  gitSync:
+    resources: {}
+
   nodeSelector: {}
   tolerations: []
   podAnnotations: {}
@@ -81,17 +50,21 @@ server:
   ingress:
     hostname: ""
 
-  # This should be appx 70% of server.persistentVolume.size to allow for ~20% for WAL and ~10% headroom
-  # - see here for more: https://prometheus.io/docs/prometheus/2.13/storage/#operational-aspects
-  retentionSize: 700GB
-
   persistentVolume:
     size: 1Ti
     storageClassName: general-purpose-retain
     accessModes: ReadWriteOnce
 
+# This value should not be set high without consideration.
+# Thanos is our long term view on data.
+  retentionTime: 7d
+
+  rbac:
+    nameOverride: ""
+
 # https://github.com/thanos-io/thanos
 thanos:
+  enabled: true
 
   image:
     repository: docker.io
@@ -100,7 +73,10 @@ thanos:
     pullPolicy: IfNotPresent
 
   sidecar:
+
     extraArgs: {}
+
+    resources: {}
 
   store:
     resources: {}

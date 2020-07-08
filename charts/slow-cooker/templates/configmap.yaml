@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "slow-cooker.labels" . | nindent 4 }}
+data:
+  urllist: |
+    {{- range .Values.application.targetUrls }}
+    {{ . }}
+    {{- end }}

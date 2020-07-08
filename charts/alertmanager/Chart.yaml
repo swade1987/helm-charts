@@ -1,0 +1,14 @@
+apiVersion: v1
+name: alertmanager
+version: 0.0.2
+appVersion: 2.6.0
+description: A Helm chart for alertmanager monitoring
+keywords:
+  - monitoring
+sources:
+  - https://prometheus.io/docs/alerting/latest/alertmanager/
+home: https://prometheus.io/docs/alerting/latest/alertmanager/
+maintainers:
+  - name: swade1987
+    email: steven@stevenwade.co.uk
+    url: https://github.com/swade1987

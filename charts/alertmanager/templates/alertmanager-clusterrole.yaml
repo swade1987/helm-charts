@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app_name: {{ .Values.alertmanager.name }}
+    app_version: {{ .Values.alertmanager.image.tag | quote }}
+  name: {{ .Values.alertmanager.name }}
+rules:
+  []
